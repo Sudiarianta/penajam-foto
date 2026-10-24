@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Penajam Foto</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --text:#14161a; --muted:#6a7280; --line:#e2e5ea;
+    --accent:#2563eb; --accent-text:#ffffff;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#0f1115; --card:#181b21; --text:#eceef2; --muted:#9aa3b2; --line:#2a2f38; --accent:#3b82f6; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       padding:16px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
+  main{max-width:880px;margin:0 auto}
+  h1{font-size:1.35rem;margin:4px 0 2px}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:.92rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+  .drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;
+        border:2px dashed var(--line);border-radius:14px;padding:28px 12px;cursor:pointer;color:var(--muted)}
+  .drop.over{border-color:var(--accent);color:var(--text)}
+  .drop strong{color:var(--text)}
+  input[type=file]{display:none}
+  .viewport{overflow:auto;border-radius:10px;border:1px solid var(--line);max-height:70vh;background:
+     repeating-conic-gradient(#8881 0% 25%,transparent 0% 50%) 0 0/16px 16px}
+  .stage{position:relative;width:100%;line-height:0}
+  .stage canvas{display:block;width:100%;height:auto}
+  #after{position:absolute;inset:0}
+  .tag{position:absolute;top:8px;padding:2px 8px;font-size:.72rem;line-height:1.4;border-radius:99px;
+       background:#000a;color:#fff;pointer-events:none}
+  .tag.l{left:8px}.tag.r{right:8px}
+  .row{display:flex;flex-wrap:wrap;gap:12px}
+  .ctl{flex:1 1 200px}
+  .ctl label{display:flex;justify-content:space-between;font-size:.88rem;margin-bottom:4px}
+  .ctl label span{color:var(--muted);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  select{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+  button{font:inherit;border:0;border-radius:10px;padding:12px 16px;cursor:pointer;background:var(--accent);color:var(--accent-text);font-weight:600}
+  button.sec{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+  button:disabled{opacity:.5;cursor:default}
+  .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .actions .grow{flex:1}
+  .status{font-size:.85rem;color:var(--muted);min-height:1.2em}
+  .note{font-size:.8rem;color:var(--muted);margin-top:10px}
+  [hidden]{display:none!important}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;
+        animation:s .7s linear infinite;vertical-align:-1px;margin-right:6px}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Penajam Foto</h1>
+  <p class="sub">Pertajam foto yang agak noise tanpa mengubah warna. Diproses di perangkat Anda, tidak ada yang disimpan di server.</p>
+
+  <label class="card drop" id="drop" for="file">
+    <strong>Pilih atau ambil foto</strong>
+    <span>atau seret foto ke sini (JPG, PNG, WebP)</span>
+  </label>
+  <input type="file" id="file" accept="image/*">
+
+  <section id="work" hidden>
+    <div class="card">
+      <div class="viewport" id="viewport">
+        <div class="stage" id="stage">
+          <canvas id="before"></canvas>
+          <canvas id="after"></canvas>
+          <span class="tag l">Asli</span><span class="tag r">Tajam</span>
+        </div>
+      </div>
+      <input type="range" id="cmp" min="0" max="100" value="50" aria-label="Geser perbandingan asli dan hasil" style="margin-top:10px">
+      <div class="actions" style="margin-top:6px">
+        <label style="font-size:.88rem"><input type="checkbox" id="zoom"> Zoom 100% (cek ketajaman)</label>
+        <span class="grow"></span>
+        <span class="status" id="status"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="ctl"><label for="amount">Ketajaman <span id="amountV"></span></label>
+          <input type="range" id="amount" min="0" max="100" value="75"></div>
+        <div class="ctl"><label for="radius">Radius detail <span id="radiusV"></span></label>
+          <input type="range" id="radius" min="4" max="40" value="10"></div>
+        <div class="ctl"><label for="noise">Kurangi noise <span id="noiseV"></span></label>
+          <input type="range" id="noise" min="0" max="100" value="55"></div>
+        <div class="ctl"><label for="thresh">Abaikan noise halus <span id="threshV"></span></label>
+          <input type="range" id="thresh" min="0" max="20" value="5"></div>
+      </div>
+      <p class="note">Hanya kecerahan (luminans) yang diolah. Selisih warna tiap piksel dipertahankan, jadi warna foto tidak bergeser.</p>
+    </div>
+
+    <div class="card actions">
+      <select id="max" aria-label="Ukuran maksimum">
+        <option value="2048">Maks 2048 px</option>
+        <option value="4096" selected>Maks 4096 px</option>
+        <option value="0">Ukuran asli</option>
+      </select>
+      <select id="fmt" aria-label="Format unduhan">
+        <option value="png">PNG (tanpa kompresi)</option>
+        <option value="jpeg">JPEG (lebih kecil)</option>
+      </select>
+      <span class="grow"></span>
+      <button class="sec" id="reset" type="button">Reset</button>
+      <button class="sec" id="change" type="button">Ganti foto</button>
+      <button id="dl" type="button">Unduh hasil</button>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+const DEFAULTS = { amount: 75, radius: 10, noise: 55, thresh: 5 };
+let file = null, baseName = "foto", W = 0, H = 0, src = null, bitmap = null;
+let timer = null, busy = false, again = false, resultReady = false;
+
+/* ---------- Gaussian blur (3x box blur, tepi di-clamp) ---------- */
+function boxH(s, d, w, h, r) {
+  const inv = 1 / (2 * r + 1);
+  for (let y = 0; y < h; y++) {
+    const o = y * w; let sum = 0;
+    for (let i = -r; i <= r; i++) sum += s[o + clamp(i, 0, w - 1)];
+    for (let x = 0; x < w; x++) {
+      d[o + x] = sum * inv;
+      sum += s[o + Math.min(x + r + 1, w - 1)] - s[o + Math.max(x - r, 0)];
+    }
+  }
+}
+function boxV(s, d, w, h, r) {
+  const inv = 1 / (2 * r + 1);
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let i = -r; i <= r; i++) sum += s[clamp(i, 0, h - 1) * w + x];
+    for (let y = 0; y < h; y++) {
+      d[y * w + x] = sum * inv;
+      sum += s[Math.min(y + r + 1, h - 1) * w + x] - s[Math.max(y - r, 0) * w + x];
+    }
+  }
+}
+function boxSizes(sigma, n) {
+  const wi = Math.sqrt(12 * sigma * sigma / n + 1);
+  let wl = Math.floor(wi); if (wl % 2 === 0) wl--;
+  const wu = wl + 2;
+  const m = Math.round((12 * sigma * sigma - n * wl * wl - 4 * n * wl - 3 * n) / (-4 * wl - 4));
+  return Array.from({ length: n }, (_, i) => i < m ? wl : wu);
+}
+function gauss(s, w, h, sigma) {
+  const a = Float32Array.from(s), b = new Float32Array(s.length);
+  for (const bw of boxSizes(sigma, 3)) {
+    const r = (bw - 1) >> 1;
+    boxH(a, b, w, h, r); boxV(b, a, w, h, r);
+  }
+  return a;
+}
+
+/* ---------- Inti: tajamkan hanya luminans ---------- */
+function sharpen(img, w, h, p) {
+  const n = w * h, d = img.data;
+  const Y = new Float32Array(n);
+  for (let i = 0, q = 0; i < n; i++, q += 4)
+    Y[i] = 0.299 * d[q] + 0.587 * d[q + 1] + 0.114 * d[q + 2];
+
+  // skala radius mengikuti resolusi agar hasil mirip di foto kecil maupun besar
+  const scale = Math.max(1, Math.max(w, h) / 2500);
+
+  // 1) kurangi noise luminans, sadar-tepi: area datar diperhalus, tepi dijaga
+  let Yd = Y;
+  const dn = p.noise / 100;
+  if (dn > 0) {
+    const B = gauss(Y, w, h, 1.2 * scale);
+    const hh = 4 + dn * 26, hh2 = hh * hh;
+    Yd = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const df = Y[i] - B[i];
+      Yd[i] = Y[i] - df * dn * Math.exp(-(df * df) / hh2);
+    }
+  }
+
+  // 2) unsharp mask pada luminans, dengan ambang lunak
+  const amt = p.amount / 100 * 2.5;
+  const B2 = gauss(Yd, w, h, (p.radius / 10) * scale);
+  const out = new ImageData(w, h), o = out.data, th = p.thresh;
+  for (let i = 0, q = 0; i < n; i++, q += 4) {
+    let df = Yd[i] - B2[i];
+    const ad = Math.abs(df);
+    df = ad <= th ? 0 : df * (ad - th) / ad;
+    // delta yang sama di R,G,B => selisih warna (chroma) tidak berubah
+    const delta = Yd[i] + amt * df - Y[i];
+    o[q] = d[q] + delta; o[q + 1] = d[q + 1] + delta; o[q + 2] = d[q + 2] + delta;
+    o[q + 3] = d[q + 3];
+  }
+  return out;
+}
+
+/* ---------- Muat foto ---------- */
+async function loadFile(f) {
+  if (!f || !f.type.startsWith("image/")) { setStatus("File bukan gambar."); return; }
+  file = f; baseName = f.name.replace(/\.[^.]+$/, "") || "foto";
+  $("work").hidden = false;
+  await prepare();
+}
+async function decode(f) {
+  if (window.createImageBitmap) {
+    try { return await createImageBitmap(f, { imageOrientation: "from-image" }); } catch (e) {}
+  }
+  const url = URL.createObjectURL(f);
+  try {
+    const im = new Image(); im.src = url; await im.decode(); return im;
+  } finally { URL.revokeObjectURL(url); }
+}
+async function prepare() {
+  setStatus("Membaca foto…", true);
+  await tick();
+  try {
+    if (bitmap && bitmap.close) bitmap.close();
+    bitmap = await decode(file);
+  } catch (e) { setStatus("Foto tidak bisa dibuka."); return; }
+  const ow = bitmap.width, oh = bitmap.height, mx = +$("max").value;
+  const k = mx && Math.max(ow, oh) > mx ? mx / Math.max(ow, oh) : 1;
+  W = Math.round(ow * k); H = Math.round(oh * k);
+  const b = $("before"), a = $("after");
+  b.width = a.width = W; b.height = a.height = H;
+  const bc = b.getContext("2d", { willReadFrequently: true });
+  bc.drawImage(bitmap, 0, 0, W, H);
+  src = bc.getImageData(0, 0, W, H);
+  applyZoom();
+  run();
+}
+
+/* ---------- Render otomatis ---------- */
+const tick = () => new Promise(r => setTimeout(r, 20));
+function schedule() { clearTimeout(timer); timer = setTimeout(run, 250); }
+async function run() {
+  if (!src) return;
+  if (busy) { again = true; return; }
+  busy = true; resultReady = false; $("dl").disabled = true;
+  setStatus("Memproses…", true);
+  await tick();
+  const t0 = performance.now();
+  const res = sharpen(src, W, H, params());
+  $("after").getContext("2d").putImageData(res, 0, 0);
+  resultReady = true; $("dl").disabled = false;
+  setStatus(`Selesai · ${W}×${H} px · ${((performance.now() - t0) / 1000).toFixed(1)} dtk`);
+  busy = false;
+  if (again) { again = false; run(); }
+}
+
+/* ---------- Unduh (hanya di memori, tanpa server) ---------- */
+function download() {
+  if (!resultReady) return;
+  const type = $("fmt").value === "jpeg" ? "image/jpeg" : "image/png";
+  $("after").toBlob(blob => {
+    if (!blob) { setStatus("Gagal membuat file."); return; }
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = `${baseName}-tajam.${type === "image/jpeg" ? "jpg" : "png"}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }, type, 0.95);
+}
+
+/* ---------- UI ---------- */
+function params() { return { amount: +$("amount").value, radius: +$("radius").value, noise: +$("noise").value, thresh: +$("thresh").value }; }
+function labels() {
+  $("amountV").textContent = $("amount").value + "%";
+  $("radiusV").textContent = ($("radius").value / 10).toFixed(1);
+  $("noiseV").textContent = $("noise").value + "%";
+  $("threshV").textContent = $("thresh").value;
+}
+function setStatus(t, spin) { $("status").innerHTML = spin ? '<span class="spin"></span>' + t : t; }
+function applyCmp() { $("after").style.clipPath = `inset(0 0 0 ${$("cmp").value}%)`; }
+function applyZoom() { $("stage").style.width = $("zoom").checked && W ? W + "px" : "100%"; }
+
+["amount", "radius", "noise", "thresh"].forEach(id => $(id).addEventListener("input", () => { labels(); schedule(); }));
+$("cmp").addEventListener("input", applyCmp);
+$("zoom").addEventListener("change", applyZoom);
+$("max").addEventListener("change", () => file && prepare());
+$("dl").addEventListener("click", download);
+$("change").addEventListener("click", () => $("file").click());
+$("reset").addEventListener("click", () => {
+  for (const k in DEFAULTS) $(k).value = DEFAULTS[k];
+  labels(); run();
+});
+$("file").addEventListener("change", e => { loadFile(e.target.files[0]); e.target.value = ""; });
+const drop = $("drop");
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => loadFile(e.dataTransfer.files[0]));
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("drop", e => { e.preventDefault(); if (e.target !== drop) loadFile(e.dataTransfer.files[0]); });
+
+labels(); applyCmp();
+</script>
+</body>
+</html>
