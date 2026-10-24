@@ -25,6 +25,11 @@
   .drop.over{border-color:var(--accent);color:var(--text)}
   .drop strong{color:var(--text)}
   input[type=file]{display:none}
+  .seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;background:var(--card)}
+  .seg label{flex:1;cursor:pointer}
+  .seg input{display:none}
+  .seg span{display:block;text-align:center;padding:10px 6px;font-size:.92rem}
+  .seg input:checked+span{background:var(--accent);color:var(--accent-text);font-weight:600}
   .viewport{overflow:auto;border-radius:10px;border:1px solid var(--line);max-height:70vh;background:
      repeating-conic-gradient(#8881 0% 25%,transparent 0% 50%) 0 0/16px 16px}
   .stage{position:relative;width:100%;line-height:0}
@@ -33,10 +38,12 @@
   .tag{position:absolute;top:8px;padding:2px 8px;font-size:.72rem;line-height:1.4;border-radius:99px;
        background:#000a;color:#fff;pointer-events:none}
   .tag.l{left:8px}.tag.r{right:8px}
+  progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
   .row{display:flex;flex-wrap:wrap;gap:12px}
   .ctl{flex:1 1 200px}
   .ctl label{display:flex;justify-content:space-between;font-size:.88rem;margin-bottom:4px}
   .ctl label span{color:var(--muted);font-variant-numeric:tabular-nums}
+  .ctl select{width:100%}
   input[type=range]{width:100%;accent-color:var(--accent)}
   select{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)}
   button{font:inherit;border:0;border-radius:10px;padding:12px 16px;cursor:pointer;background:var(--accent);color:var(--accent-text);font-weight:600}
@@ -45,7 +52,7 @@
   .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
   .actions .grow{flex:1}
   .status{font-size:.85rem;color:var(--muted);min-height:1.2em}
-  .note{font-size:.8rem;color:var(--muted);margin-top:10px}
+  .note{font-size:.8rem;color:var(--muted);margin:10px 0 0}
   [hidden]{display:none!important}
   .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;
         animation:s .7s linear infinite;vertical-align:-1px;margin-right:6px}
@@ -55,7 +62,7 @@
 <body>
 <main>
   <h1>Penajam Foto</h1>
-  <p class="sub">Pertajam foto yang agak noise tanpa mengubah warna. Diproses di perangkat Anda, tidak ada yang disimpan di server.</p>
+  <p class="sub">Pertajam dan bersihkan foto yang blur atau noise tanpa mengubah warna. Diproses di perangkat Anda, tidak ada yang disimpan di server.</p>
 
   <label class="card drop" id="drop" for="file">
     <strong>Pilih atau ambil foto</strong>
@@ -64,14 +71,20 @@
   <input type="file" id="file" accept="image/*">
 
   <section id="work" hidden>
+    <div class="seg" role="radiogroup" aria-label="Mode">
+      <label><input type="radio" name="mode" value="ai" checked><span>AI (mirip Remini)</span></label>
+      <label><input type="radio" name="mode" value="classic"><span>Klasik (cepat)</span></label>
+    </div>
+
     <div class="card">
       <div class="viewport" id="viewport">
         <div class="stage" id="stage">
           <canvas id="before"></canvas>
           <canvas id="after"></canvas>
-          <span class="tag l">Asli</span><span class="tag r">Tajam</span>
+          <span class="tag l">Asli</span><span class="tag r">Hasil</span>
         </div>
       </div>
+      <progress id="prog" max="1" value="0" hidden></progress>
       <input type="range" id="cmp" min="0" max="100" value="50" aria-label="Geser perbandingan asli dan hasil" style="margin-top:10px">
       <div class="actions" style="margin-top:6px">
         <label style="font-size:.88rem"><input type="checkbox" id="zoom"> Zoom 100% (cek ketajaman)</label>
@@ -80,7 +93,41 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="aiPanel">
+      <div class="row">
+        <div class="ctl"><label for="model">Model AI</label>
+          <select id="model">
+            <option value="fast" selected>Cepat (4,6 MB)</option>
+            <option value="plus">Kualitas tinggi (64 MB, jauh lebih lambat)</option>
+          </select></div>
+        <div class="ctl"><label for="proc">Detail proses</label>
+          <select id="proc">
+            <option value="768">Cepat · 768 px</option>
+            <option value="1280" selected>Seimbang · 1280 px</option>
+            <option value="2048">Tinggi · 2048 px</option>
+          </select></div>
+        <div class="ctl"><label for="scale">Ukuran hasil</label>
+          <select id="scale">
+            <option value="1">1× (sama dengan ukuran proses)</option>
+            <option value="2" selected>2×</option>
+            <option value="4">4×</option>
+          </select></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="ctl"><label for="keep">Jaga warna asli <span id="keepV"></span></label>
+          <input type="range" id="keep" min="0" max="100" value="100"></div>
+        <div class="ctl"><label for="aiAmt">Kekuatan AI <span id="aiAmtV"></span></label>
+          <input type="range" id="aiAmt" min="0" max="100" value="100"></div>
+      </div>
+      <div class="actions" style="margin-top:12px">
+        <button class="sec" id="run" type="button">Jalankan ulang AI</button>
+        <button class="sec" id="cancel" type="button" hidden>Batal</button>
+        <span class="status" id="hint" hidden>Pengaturan berubah. Klik Jalankan ulang AI.</span>
+      </div>
+      <p class="note">Pertama kali dipakai, mesin AI (sekitar 28 MB dengan GPU, 14 MB tanpa GPU) dan model diunduh sekali, lalu disimpan oleh browser. Setelah itu proses berjalan lokal. AI membuat ulang detail halus, jadi tekstur dan wajah bisa sedikit berbeda dari aslinya. Geser "Kekuatan AI" ke bawah jika terlalu berlebihan. Tanpa GPU (WebGPU), proses bisa sangat lambat: pilih detail 768 px.</p>
+    </div>
+
+    <div class="card" id="classicPanel" hidden>
       <div class="row">
         <div class="ctl"><label for="amount">Ketajaman <span id="amountV"></span></label>
           <input type="range" id="amount" min="0" max="100" value="75"></div>
@@ -90,16 +137,17 @@
           <input type="range" id="noise" min="0" max="100" value="55"></div>
         <div class="ctl"><label for="thresh">Abaikan noise halus <span id="threshV"></span></label>
           <input type="range" id="thresh" min="0" max="20" value="5"></div>
+        <div class="ctl"><label for="max">Ukuran maksimum</label>
+          <select id="max">
+            <option value="2048">Maks 2048 px</option>
+            <option value="4096" selected>Maks 4096 px</option>
+            <option value="0">Ukuran asli</option>
+          </select></div>
       </div>
-      <p class="note">Hanya kecerahan (luminans) yang diolah. Selisih warna tiap piksel dipertahankan, jadi warna foto tidak bergeser.</p>
+      <p class="note">Hanya kecerahan (luminans) yang diolah, jadi warna tidak bergeser.</p>
     </div>
 
     <div class="card actions">
-      <select id="max" aria-label="Ukuran maksimum">
-        <option value="2048">Maks 2048 px</option>
-        <option value="4096" selected>Maks 4096 px</option>
-        <option value="0">Ukuran asli</option>
-      </select>
       <select id="fmt" aria-label="Format unduhan">
         <option value="png">PNG (tanpa kompresi)</option>
         <option value="jpeg">JPEG (lebih kecil)</option>
@@ -107,19 +155,18 @@
       <span class="grow"></span>
       <button class="sec" id="reset" type="button">Reset</button>
       <button class="sec" id="change" type="button">Ganti foto</button>
-      <button id="dl" type="button">Unduh hasil</button>
+      <button id="dl" type="button" disabled>Unduh hasil</button>
     </div>
   </section>
 </main>
 
 <script>
 "use strict";
-const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
-const DEFAULTS = { amount: 75, radius: 10, noise: 55, thresh: 5 };
-let file = null, baseName = "foto", W = 0, H = 0, src = null, bitmap = null;
-let timer = null, busy = false, again = false, resultReady = false;
+/* ====================================================================
+   Bagian murni (tanpa DOM): pengolahan gambar
+   ==================================================================== */
 
 /* ---------- Gaussian blur (3x box blur, tepi di-clamp) ---------- */
 function boxH(s, d, w, h, r) {
@@ -160,17 +207,15 @@ function gauss(s, w, h, sigma) {
   return a;
 }
 
-/* ---------- Inti: tajamkan hanya luminans ---------- */
+/* ---------- Mode klasik: tajamkan hanya luminans ---------- */
 function sharpen(img, w, h, p) {
   const n = w * h, d = img.data;
   const Y = new Float32Array(n);
   for (let i = 0, q = 0; i < n; i++, q += 4)
     Y[i] = 0.299 * d[q] + 0.587 * d[q + 1] + 0.114 * d[q + 2];
 
-  // skala radius mengikuti resolusi agar hasil mirip di foto kecil maupun besar
   const scale = Math.max(1, Math.max(w, h) / 2500);
 
-  // 1) kurangi noise luminans, sadar-tepi: area datar diperhalus, tepi dijaga
   let Yd = Y;
   const dn = p.noise / 100;
   if (dn > 0) {
@@ -183,7 +228,6 @@ function sharpen(img, w, h, p) {
     }
   }
 
-  // 2) unsharp mask pada luminans, dengan ambang lunak
   const amt = p.amount / 100 * 2.5;
   const B2 = gauss(Yd, w, h, (p.radius / 10) * scale);
   const out = new ImageData(w, h), o = out.data, th = p.thresh;
@@ -191,7 +235,6 @@ function sharpen(img, w, h, p) {
     let df = Yd[i] - B2[i];
     const ad = Math.abs(df);
     df = ad <= th ? 0 : df * (ad - th) / ad;
-    // delta yang sama di R,G,B => selisih warna (chroma) tidak berubah
     const delta = Yd[i] + amt * df - Y[i];
     o[q] = d[q] + delta; o[q + 1] = d[q + 1] + delta; o[q + 2] = d[q + 2] + delta;
     o[q + 3] = d[q + 3];
@@ -199,57 +242,400 @@ function sharpen(img, w, h, p) {
   return out;
 }
 
-/* ---------- Muat foto ---------- */
-async function loadFile(f) {
-  if (!f || !f.type.startsWith("image/")) { setStatus("File bukan gambar."); return; }
-  file = f; baseName = f.name.replace(/\.[^.]+$/, "") || "foto";
-  $("work").hidden = false;
-  await prepare();
+/* ---------- Mode AI: tile, tempel, dan selaraskan warna ---------- */
+
+// Isi buffer NCHW (3 x IN x IN) dari gambar RGBA; piksel di luar gambar diambil dari tepi terdekat.
+function fillTileInput(d, w, h, x0, y0, IN, buf) {
+  const pl = IN * IN;
+  for (let yy = 0; yy < IN; yy++) {
+    const row = clamp(y0 + yy, 0, h - 1) * w, ro = yy * IN;
+    for (let xx = 0; xx < IN; xx++) {
+      const q = (row + clamp(x0 + xx, 0, w - 1)) * 4, i = ro + xx;
+      buf[i] = d[q] / 255; buf[pl + i] = d[q + 1] / 255; buf[2 * pl + i] = d[q + 2] / 255;
+    }
+  }
 }
+
+// Tempel bagian inti tile hasil model (4x) ke buffer hasil pada skala S (1, 2, atau 4).
+// od: keluaran model [3, 4*IN, 4*IN]; sd: RGBA hasil (lebar OW).
+function pasteTile(od, IN, pad, S, sd, OW, tx, ty, T, w, h) {
+  const OIN = IN * 4, plane = OIN * OIN, k = 4 / S, inv = 255 / (k * k);
+  const cw = Math.min(T, w - tx * T), ch = Math.min(T, h - ty * T);
+  const owc = cw * S, ohc = ch * S;
+  const baseX = pad * 4, baseY = pad * 4;
+  const dstX0 = tx * T * S, dstY0 = ty * T * S;
+  for (let oy = 0; oy < ohc; oy++) {
+    const sy = baseY + oy * k;
+    for (let ox = 0; ox < owc; ox++) {
+      const sx = baseX + ox * k;
+      let r = 0, g = 0, b = 0;
+      for (let j = 0; j < k; j++) {
+        const row = (sy + j) * OIN + sx;
+        for (let i = 0; i < k; i++) { r += od[row + i]; g += od[plane + row + i]; b += od[2 * plane + row + i]; }
+      }
+      const q = ((dstY0 + oy) * OW + dstX0 + ox) * 4;
+      sd[q] = r * inv; sd[q + 1] = g * inv; sd[q + 2] = b * inv; sd[q + 3] = 255;
+    }
+  }
+  return { dstX0, dstY0, owc, ohc };
+}
+
+// Koreksi frekuensi rendah per kanal pada resolusi proses:
+// corr = blur(asli) - blur(hasil AI diperkecil). Menjaga warna dan kecerahan area lebar tetap sama dengan aslinya.
+function buildCorr(srcData, w, h, srData, S, OW) {
+  const n = w * h, sigma = Math.max(2, Math.max(w, h) / 400), res = [];
+  for (let c = 0; c < 3; c++) {
+    const po = new Float32Array(n), ps = new Float32Array(n);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        po[i] = srcData[i * 4 + c];
+        let acc = 0;
+        for (let j = 0; j < S; j++) {
+          let q = ((y * S + j) * OW + x * S) * 4 + c;
+          for (let t = 0; t < S; t++, q += 4) acc += srData[q];
+        }
+        ps[i] = acc / (S * S);
+      }
+    }
+    const go = gauss(po, w, h, sigma), gs = gauss(ps, w, h, sigma);
+    for (let i = 0; i < n; i++) go[i] -= gs[i];
+    res.push(go);
+  }
+  return res;
+}
+
+// Tabel koordinat bilinear dari resolusi hasil ke resolusi proses.
+function coordTable(len, S, max) {
+  const i0 = new Int32Array(len), i1 = new Int32Array(len), f = new Float32Array(len);
+  for (let o = 0; o < len; o++) {
+    let u = (o + 0.5) / S - 0.5;
+    if (u < 0) u = 0; if (u > max - 1) u = max - 1;
+    const a = Math.floor(u);
+    i0[o] = a; i1[o] = Math.min(a + 1, max - 1); f[o] = u - a;
+  }
+  return { i0, i1, f };
+}
+
+// Gabungkan hasil AI + koreksi warna + campuran dengan aslinya untuk baris y0..y0+hh-1.
+// P: { w, h, S, OW, srcData, sr, corr, lam, st, X, Y }
+function composeRows(o, y0, hh, P) {
+  const { w, S, OW, srcData: d, sr: sd, corr, lam, st, X, Y } = P;
+  const needCorr = lam > 0.001 && corr, needOrig = st < 0.999;
+  const C0 = corr ? corr[0] : null, C1 = corr ? corr[1] : null, C2 = corr ? corr[2] : null;
+  for (let yy = 0; yy < hh; yy++) {
+    const oy = y0 + yy, j0 = Y.i0[oy] * w, j1 = Y.i1[oy] * w, fy = Y.f[oy];
+    for (let ox = 0; ox < OW; ox++) {
+      const q = (oy * OW + ox) * 4, qo = (yy * OW + ox) * 4;
+      let r = sd[q], g = sd[q + 1], b = sd[q + 2];
+      if (needCorr || needOrig) {
+        const a00 = j0 + X.i0[ox], a01 = j0 + X.i1[ox], a10 = j1 + X.i0[ox], a11 = j1 + X.i1[ox];
+        const fx = X.f[ox];
+        const w00 = (1 - fx) * (1 - fy), w01 = fx * (1 - fy), w10 = (1 - fx) * fy, w11 = fx * fy;
+        if (needCorr) {
+          r += lam * (C0[a00] * w00 + C0[a01] * w01 + C0[a10] * w10 + C0[a11] * w11);
+          g += lam * (C1[a00] * w00 + C1[a01] * w01 + C1[a10] * w10 + C1[a11] * w11);
+          b += lam * (C2[a00] * w00 + C2[a01] * w01 + C2[a10] * w10 + C2[a11] * w11);
+        }
+        if (needOrig) {
+          const p00 = a00 * 4, p01 = a01 * 4, p10 = a10 * 4, p11 = a11 * 4;
+          const ro = d[p00] * w00 + d[p01] * w01 + d[p10] * w10 + d[p11] * w11;
+          const go = d[p00 + 1] * w00 + d[p01 + 1] * w01 + d[p10 + 1] * w10 + d[p11 + 1] * w11;
+          const bo = d[p00 + 2] * w00 + d[p01 + 2] * w01 + d[p10 + 2] * w10 + d[p11 + 2] * w11;
+          r = ro + (r - ro) * st; g = go + (g - go) * st; b = bo + (b - bo) * st;
+        }
+      }
+      o[qo] = r; o[qo + 1] = g; o[qo + 2] = b; o[qo + 3] = 255;
+    }
+  }
+}
+
+/* ====================================================================
+   Bagian UI
+   ==================================================================== */
+const $ = id => document.getElementById(id);
+const tick0 = () => new Promise(r => setTimeout(r, 0));
+const tick = () => new Promise(r => setTimeout(r, 20));
+
+const ORT_VER = "1.30.0";
+const ORT_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VER}/dist/`;
+const HF = "https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/";
+const MODELS = {
+  fast: { file: "realesr-general-x4v3.onnx", bytes: 4.8e6, tile: 256, pad: 24 },
+  plus: { file: "realesrgan-x4plus.onnx", bytes: 67.1e6, tile: 128, pad: 16 }
+};
+const DEFAULTS = { amount: 75, radius: 10, noise: 55, thresh: 5 };
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+                  (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform));
+const MAX_OUT_PIXELS = IS_MOBILE ? 16e6 : 36e6;
+
+let mode = "ai", file = null, baseName = "foto", bitmap = null, src = null;
+let w = 0, h = 0, S = 1, OW = 0, OH = 0, sr = null, corr = null;
+let job = 0, composeTok = 0, resultReady = false;
+let classicBusy = false, classicAgain = false, classicTimer = null, composeTimer = null;
+let ort = null, ortKind = "", gpuOK = null, sess = null, sessKey = null;
+const modelBufs = {};
+
+function setStatus(t, spin) { $("status").innerHTML = spin ? '<span class="spin"></span>' + t : t; }
+function setProg(v) { const p = $("prog"); if (v == null) { p.hidden = true; } else { p.hidden = false; p.value = v; } }
+function fmtTime(s) { s = Math.round(s); return s < 60 ? s + " dtk" : Math.floor(s / 60) + " mnt " + (s % 60) + " dtk"; }
+
+/* ---------- Muat foto ---------- */
 async function decode(f) {
   if (window.createImageBitmap) {
     try { return await createImageBitmap(f, { imageOrientation: "from-image" }); } catch (e) {}
   }
   const url = URL.createObjectURL(f);
-  try {
-    const im = new Image(); im.src = url; await im.decode(); return im;
-  } finally { URL.revokeObjectURL(url); }
+  try { const im = new Image(); im.src = url; await im.decode(); return im; }
+  finally { URL.revokeObjectURL(url); }
 }
-async function prepare() {
+async function loadFile(f) {
+  if (!f || !f.type.startsWith("image/")) { setStatus("File bukan gambar."); return; }
+  file = f; baseName = f.name.replace(/\.[^.]+$/, "") || "foto";
+  $("work").hidden = false;
   setStatus("Membaca foto…", true);
   await tick();
   try {
     if (bitmap && bitmap.close) bitmap.close();
     bitmap = await decode(file);
   } catch (e) { setStatus("Foto tidak bisa dibuka."); return; }
-  const ow = bitmap.width, oh = bitmap.height, mx = +$("max").value;
-  const k = mx && Math.max(ow, oh) > mx ? mx / Math.max(ow, oh) : 1;
-  W = Math.round(ow * k); H = Math.round(oh * k);
-  const b = $("before"), a = $("after");
-  b.width = a.width = W; b.height = a.height = H;
-  const bc = b.getContext("2d", { willReadFrequently: true });
-  bc.drawImage(bitmap, 0, 0, W, H);
-  src = bc.getImageData(0, 0, W, H);
-  applyZoom();
-  run();
+  render();
+}
+function makeSrc(maxSide) {
+  const ow = bitmap.width, oh = bitmap.height;
+  const k = maxSide && Math.max(ow, oh) > maxSide ? maxSide / Math.max(ow, oh) : 1;
+  w = Math.max(1, Math.round(ow * k)); h = Math.max(1, Math.round(oh * k));
+  const b = $("before"); b.width = w; b.height = h;
+  const c = b.getContext("2d", { willReadFrequently: true });
+  c.imageSmoothingQuality = "high";
+  c.drawImage(bitmap, 0, 0, w, h);
+  src = c.getImageData(0, 0, w, h);
+}
+function setAfterSize(ww, hh) { const a = $("after"); a.width = ww; a.height = hh; applyZoom(); }
+
+function render() {
+  if (!bitmap) return;
+  job++;
+  $("hint").hidden = true;
+  if (mode === "classic") {
+    makeSrc(+$("max").value); S = 1; OW = w; OH = h; sr = null; corr = null;
+    setAfterSize(w, h);
+    runClassic();
+  } else {
+    makeSrc(+$("proc").value);
+    runAI(job);
+  }
 }
 
-/* ---------- Render otomatis ---------- */
-const tick = () => new Promise(r => setTimeout(r, 20));
-function schedule() { clearTimeout(timer); timer = setTimeout(run, 250); }
-async function run() {
+/* ---------- Mode klasik ---------- */
+function params() { return { amount: +$("amount").value, radius: +$("radius").value, noise: +$("noise").value, thresh: +$("thresh").value }; }
+async function runClassic() {
   if (!src) return;
-  if (busy) { again = true; return; }
-  busy = true; resultReady = false; $("dl").disabled = true;
-  setStatus("Memproses…", true);
+  if (classicBusy) { classicAgain = true; return; }
+  classicBusy = true; resultReady = false; $("dl").disabled = true;
+  setProg(null); setStatus("Memproses…", true);
   await tick();
   const t0 = performance.now();
-  const res = sharpen(src, W, H, params());
+  const res = sharpen(src, w, h, params());
   $("after").getContext("2d").putImageData(res, 0, 0);
   resultReady = true; $("dl").disabled = false;
-  setStatus(`Selesai · ${W}×${H} px · ${((performance.now() - t0) / 1000).toFixed(1)} dtk`);
-  busy = false;
-  if (again) { again = false; run(); }
+  setStatus(`Selesai · ${w}×${h} px · ${((performance.now() - t0) / 1000).toFixed(1)} dtk`);
+  classicBusy = false;
+  if (classicAgain) { classicAgain = false; runClassic(); }
+}
+
+/* ---------- Mode AI: mesin dan model ---------- */
+async function detectGPU() {
+  try { if (!navigator.gpu) return false; return !!(await navigator.gpu.requestAdapter()); }
+  catch (e) { return false; }
+}
+function loadORT(useGPU) {
+  const kind = useGPU ? "webgpu" : "wasm";
+  if (ort && ortKind === kind) return Promise.resolve(ort);
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = ORT_BASE + (useGPU ? "ort.webgpu.min.js" : "ort.wasm.min.js");
+    s.onload = () => {
+      if (!window.ort) { reject(new Error("ONNX Runtime tidak terbaca")); return; }
+      ort = window.ort; ortKind = kind;
+      ort.env.wasm.wasmPaths = ORT_BASE;
+      ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
+      resolve(ort);
+    };
+    s.onerror = () => reject(new Error("Gagal memuat ONNX Runtime (periksa koneksi internet)"));
+    document.head.appendChild(s);
+  });
+}
+async function fetchModel(key, onProgress) {
+  const M = MODELS[key];
+  const urls = ["models/" + M.file, HF + M.file];   // salinan lokal di repo (jika ada) dipakai lebih dulu
+  let cache = null;
+  try {
+    cache = await caches.open("penajam-model-v1");
+    for (const u of urls) { const hit = await cache.match(u); if (hit) return await hit.arrayBuffer(); }
+  } catch (e) { cache = null; }
+  let lastErr = null;
+  for (const u of urls) {
+    try {
+      const resp = await fetch(u, { mode: "cors" });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      if ((resp.headers.get("content-type") || "").includes("text/html")) throw new Error("bukan file model");
+      const total = +resp.headers.get("content-length") || M.bytes;
+      const reader = resp.body.getReader(), chunks = []; let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); got += value.length; onProgress(Math.min(got / total, 0.99));
+      }
+      if (got < 1e6) throw new Error("file model terlalu kecil");
+      const buf = new Uint8Array(got); let off = 0;
+      for (const c of chunks) { buf.set(c, off); off += c.length; }
+      try { if (cache) await cache.put(u, new Response(buf.slice().buffer)); } catch (e) {}
+      return buf.buffer;
+    } catch (e) { lastErr = e; }
+  }
+  throw new Error("Model tidak bisa diunduh (" + (lastErr ? lastErr.message : "?") + ")");
+}
+async function releaseSession() {
+  if (sess) { try { await sess.release(); } catch (e) {} }
+  sess = null; sessKey = null;
+}
+async function getSession(key) {
+  if (sess && sessKey === key) return sess;
+  await releaseSession();
+  if (gpuOK === null) gpuOK = await detectGPU();
+  setStatus("Memuat mesin AI…", true);
+  await loadORT(gpuOK);
+  if (!modelBufs[key]) {
+    setStatus("Mengunduh model AI…", true); setProg(0);
+    modelBufs[key] = await fetchModel(key, f => { setProg(f); setStatus(`Mengunduh model AI… ${Math.round(f * 100)}%`, true); });
+    setProg(null);
+  }
+  setStatus("Menyiapkan model…", true);
+  await tick();
+  const bytes = new Uint8Array(modelBufs[key]);
+  let s;
+  try {
+    s = await ort.InferenceSession.create(bytes, { executionProviders: gpuOK ? ["webgpu", "wasm"] : ["wasm"], graphOptimizationLevel: "all" });
+  } catch (e) {
+    if (!gpuOK) throw e;
+    gpuOK = false;
+    s = await ort.InferenceSession.create(bytes, { executionProviders: ["wasm"] });
+  }
+  sess = s; sessKey = key;
+  return s;
+}
+async function fallbackToCPU(key) {
+  await releaseSession();
+  gpuOK = false;
+  const s = await ort.InferenceSession.create(new Uint8Array(modelBufs[key]), { executionProviders: ["wasm"] });
+  sess = s; sessKey = key;
+  return s;
+}
+
+/* ---------- Mode AI: proses ---------- */
+async function runAI(id) {
+  resultReady = false; $("dl").disabled = true; sr = null; corr = null;
+  $("run").hidden = true; $("cancel").hidden = false;
+  composeTok++;
+  try {
+    const key = $("model").value, M = MODELS[key];
+    if (gpuOK === null) gpuOK = await detectGPU();
+
+    const want = +$("scale").value;
+    S = want;
+    while (S > 1 && w * h * S * S > MAX_OUT_PIXELS) S /= 2;
+    OW = w * S; OH = h * S;
+    setAfterSize(OW, OH);
+    const actx = $("after").getContext("2d");
+    actx.imageSmoothingQuality = "high";
+    actx.drawImage($("before"), 0, 0, OW, OH);
+
+    let s = await getSession(key);
+    if (id !== job) return;
+    let inName = s.inputNames[0], outName = s.outputNames[0];
+
+    const T = gpuOK ? M.tile : Math.min(M.tile, 128), pad = M.pad, IN = T + 2 * pad;
+    sr = new ImageData(OW, OH);
+    const nx = Math.ceil(w / T), ny = Math.ceil(h / T), total = nx * ny;
+    const inBuf = new Float32Array(3 * IN * IN);
+    let done = 0, fellBack = false;
+    const t0 = performance.now();
+    setProg(0);
+
+    for (let ty = 0; ty < ny; ty++) {
+      for (let tx = 0; tx < nx; tx++) {
+        if (id !== job) return;
+        fillTileInput(src.data, w, h, tx * T - pad, ty * T - pad, IN, inBuf);
+        let out;
+        try {
+          out = await s.run({ [inName]: new ort.Tensor("float32", inBuf, [1, 3, IN, IN]) });
+        } catch (err) {
+          if (!fellBack && gpuOK) {
+            fellBack = true;
+            setStatus("GPU bermasalah, beralih ke CPU (lebih lambat)…", true);
+            s = await fallbackToCPU(key);
+            inName = s.inputNames[0]; outName = s.outputNames[0];
+            out = await s.run({ [inName]: new ort.Tensor("float32", inBuf, [1, 3, IN, IN]) });
+          } else throw err;
+        }
+        if (id !== job) return;
+        const tens = out[outName];
+        const r = pasteTile(tens.data, IN, pad, S, sr.data, OW, tx, ty, T, w, h);
+        try { if (tens.dispose) tens.dispose(); } catch (e) {}
+        actx.putImageData(sr, 0, 0, r.dstX0, r.dstY0, r.owc, r.ohc);
+        done++;
+        setProg(done / total);
+        const eta = (performance.now() - t0) / done * (total - done) / 1000;
+        setStatus(`AI memproses bagian ${done}/${total}` + (done < total ? ` · sisa ± ${fmtTime(eta)}` : ""), true);
+        await tick0();
+      }
+    }
+    if (id !== job) return;
+
+    setStatus("Menyelaraskan warna…", true); setProg(null);
+    await tick();
+    corr = buildCorr(src.data, w, h, sr.data, S, OW);
+    if (id !== job) return;
+    await compose();
+    if (id !== job) return;
+    resultReady = true; $("dl").disabled = false;
+    const secs = (performance.now() - t0) / 1000;
+    setStatus(`Selesai · ${OW}×${OH} px · ${fmtTime(secs)}` + (S < want ? ` · dibatasi ${S}× agar muat di memori` : ""));
+  } catch (e) {
+    if (id !== job) return;
+    console.error(e);
+    setProg(null);
+    setStatus("AI gagal: " + (e && e.message ? e.message : e) + ". Beralih ke mode Klasik.");
+    document.querySelector('input[name=mode][value=classic]').checked = true;
+    switchMode("classic");
+  } finally {
+    if (id === job) { setProg(null); $("run").hidden = false; $("cancel").hidden = true; }
+  }
+}
+async function compose() {
+  if (!sr || !corr) return;
+  const tok = ++composeTok;
+  const P = {
+    w, h, S, OW, srcData: src.data, sr: sr.data, corr,
+    lam: +$("keep").value / 100, st: +$("aiAmt").value / 100,
+    X: coordTable(OW, S, w), Y: coordTable(OH, S, h)
+  };
+  const ctx = $("after").getContext("2d");
+  const rows = 128;
+  for (let y0 = 0; y0 < OH; y0 += rows) {
+    const hh = Math.min(rows, OH - y0);
+    const img = ctx.createImageData(OW, hh);
+    composeRows(img.data, y0, hh, P);
+    ctx.putImageData(img, 0, y0);
+    if (tok !== composeTok) return;
+    await tick0();
+    if (tok !== composeTok) return;
+  }
+}
+function scheduleCompose() {
+  clearTimeout(composeTimer);
+  composeTimer = setTimeout(() => { if (resultReady) compose(); }, 150);
 }
 
 /* ---------- Unduh (hanya di memori, tanpa server) ---------- */
@@ -259,33 +645,54 @@ function download() {
   $("after").toBlob(blob => {
     if (!blob) { setStatus("Gagal membuat file."); return; }
     const url = URL.createObjectURL(blob), a = document.createElement("a");
-    a.href = url; a.download = `${baseName}-tajam.${type === "image/jpeg" ? "jpg" : "png"}`;
+    a.href = url; a.download = `${baseName}-${mode === "ai" ? "ai" : "tajam"}.${type === "image/jpeg" ? "jpg" : "png"}`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, type, 0.95);
 }
 
 /* ---------- UI ---------- */
-function params() { return { amount: +$("amount").value, radius: +$("radius").value, noise: +$("noise").value, thresh: +$("thresh").value }; }
 function labels() {
   $("amountV").textContent = $("amount").value + "%";
   $("radiusV").textContent = ($("radius").value / 10).toFixed(1);
   $("noiseV").textContent = $("noise").value + "%";
   $("threshV").textContent = $("thresh").value;
+  $("keepV").textContent = $("keep").value + "%";
+  $("aiAmtV").textContent = $("aiAmt").value + "%";
 }
-function setStatus(t, spin) { $("status").innerHTML = spin ? '<span class="spin"></span>' + t : t; }
 function applyCmp() { $("after").style.clipPath = `inset(0 0 0 ${$("cmp").value}%)`; }
-function applyZoom() { $("stage").style.width = $("zoom").checked && W ? W + "px" : "100%"; }
+function applyZoom() { $("stage").style.width = $("zoom").checked && OW ? OW + "px" : "100%"; }
+function switchMode(m) {
+  mode = m;
+  $("aiPanel").hidden = m !== "ai";
+  $("classicPanel").hidden = m !== "classic";
+  if (bitmap) render();
+}
+function scheduleClassic() { clearTimeout(classicTimer); classicTimer = setTimeout(runClassic, 250); }
 
-["amount", "radius", "noise", "thresh"].forEach(id => $(id).addEventListener("input", () => { labels(); schedule(); }));
+["amount", "radius", "noise", "thresh"].forEach(id => $(id).addEventListener("input", () => { labels(); if (mode === "classic") scheduleClassic(); }));
+["keep", "aiAmt"].forEach(id => $(id).addEventListener("input", () => { labels(); scheduleCompose(); }));
+["model", "proc", "scale"].forEach(id => $(id).addEventListener("change", () => {
+  if (id === "model" && $("model").value === "plus" && +$("proc").value > 768) $("proc").value = "768";
+  if (bitmap && mode === "ai") $("hint").hidden = false;
+}));
+$("max").addEventListener("change", () => { if (bitmap && mode === "classic") render(); });
+document.querySelectorAll("input[name=mode]").forEach(r => r.addEventListener("change", e => switchMode(e.target.value)));
+$("run").addEventListener("click", render);
+$("cancel").addEventListener("click", () => {
+  job++; composeTok++;
+  setProg(null); setStatus("Dibatalkan.");
+  $("run").hidden = false; $("cancel").hidden = true;
+  if (OW) $("after").getContext("2d").drawImage($("before"), 0, 0, OW, OH);
+  sr = null; corr = null; resultReady = false; $("dl").disabled = true;
+});
 $("cmp").addEventListener("input", applyCmp);
 $("zoom").addEventListener("change", applyZoom);
-$("max").addEventListener("change", () => file && prepare());
 $("dl").addEventListener("click", download);
 $("change").addEventListener("click", () => $("file").click());
 $("reset").addEventListener("click", () => {
-  for (const k in DEFAULTS) $(k).value = DEFAULTS[k];
-  labels(); run();
+  if (mode === "classic") { for (const k in DEFAULTS) $(k).value = DEFAULTS[k]; labels(); scheduleClassic(); }
+  else { $("keep").value = 100; $("aiAmt").value = 100; labels(); scheduleCompose(); }
 });
 $("file").addEventListener("change", e => { loadFile(e.target.files[0]); e.target.value = ""; });
 const drop = $("drop");
@@ -296,6 +703,10 @@ window.addEventListener("dragover", e => e.preventDefault());
 window.addEventListener("drop", e => { e.preventDefault(); if (e.target !== drop) loadFile(e.dataTransfer.files[0]); });
 
 labels(); applyCmp();
+detectGPU().then(ok => {
+  gpuOK = ok;
+  if (!ok) $("proc").value = "768";
+});
 </script>
 </body>
 </html>
